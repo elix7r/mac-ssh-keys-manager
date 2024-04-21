@@ -18,10 +18,10 @@ The `mac_ssh_keys_manager.sh` script is a comprehensive tool designed to simplif
 ### Installation
 1. Clone the repository or download the `mac_ssh_keys_manager.sh` script directly.
 2. Move the script to a directory of your choice, such as `~/scripts/`.
-3. Give executable permissions:
-   ```bash
-   chmod +x ~/scripts/mac_ssh_keys_manager.sh
-   ```
+3. Give executable permissions:   
+```bash
+chmod +x ~/scripts/mac_ssh_keys_manager.sh
+```
 
 ### Running the Script
 To start the script, navigate to the directory where it's stored and run:
