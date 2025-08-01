@@ -34,6 +34,17 @@ if [ ! -d ~/.ssh ]; then
     chmod 700 ~/.ssh
 fi
 
+has_passphrase() {
+    local keyfile="$1"
+    expect <<EOF | grep -q "Enter passphrase"
+spawn ssh-keygen -y -f "$keyfile"
+expect {
+    "Enter passphrase" { exit 0 }
+    eof { exit 1 }
+}
+EOF
+}
+
 while true; do
     echo ""
     echo "Main Menu:"
@@ -100,10 +111,26 @@ while true; do
                     fi
 
                     ssh-keygen -t $key_type -f "$full_path" -C "your_email@example.com"
+
+                    # Start the ssh-agent in the background.
                     if [ -z "$SSH_AUTH_SOCK" ]; then
                         eval "$(ssh-agent -s)"
                     fi
-                    ssh-add -K "$full_path" >/dev/null 2>&1
+
+                    if has_passphrase "$full_path"; then
+                        echo "🔐 Key has a passphrase."
+                        if ssh-add --apple-use-keychain /dev/null 2>&1 | grep -qi 'illegal option'; then
+                            echo "⚠️ --apple-use-keychain is not supported. Falling back to plain ssh-add."
+                            ssh-add "$full_path"
+                        else
+                            echo "✅ Adding key to keychain with --apple-use-keychain"
+                            ssh-add --apple-use-keychain "$full_path"
+                        fi
+                    else
+                        echo "🔓 Key has no passphrase, adding normally..."
+                        ssh-add "$full_path"
+                    fi
+
                     echo "SSH key generated successfully at $full_path and added to SSH agent."
                     ;;
                 3) continue ;;
