@@ -1,15 +1,31 @@
 #!/bin/bash
 
-# Name: mac_ssh_keys_manager.sh 
-# Version: 0.1
-# Author: drhdev
-# Usage: Copy this script to your desired directory, e.g., ~/scripts/. 
-# Make it executable with: chmod +x mac_ssh_keys_manager.sh - Run it with: ./mac_ssh_keys_manager.sh .
+# Name: mac_ssh_keys_manager.sh
+# Version: 0.2
+# Original Author: drhdev
+# Fork Author: Eduard Garays
+# Description: Forked and extended version of mac_ssh_keys_manager.sh
+#              with improved key discovery, display, and backup functionality.
+#
+# License: GNU General Public License v3.0 or later
+#
+# Changes in this fork:
+# - Recursively finds keys in ~/.ssh, including nested directories
+# - Displays relative paths for disambiguation
+# - Adds automated ZIP backups with timestamps
+# - Handles missing public keys gracefully
+#
+# Usage:
+#   Copy this script to your desired directory, e.g., ~/scripts/
+#   Make it executable with: chmod +x mac_ssh_keys_manager.sh
+#   Run it with: ./mac_ssh_keys_manager.sh
 
 echo ""
-echo "mac_ssh_keys_manager.sh  - Version 0.1 by DrHDev"
+echo "mac_ssh_keys_manager.sh - Forked by Eduard Garays (original by DrHDev)"
+echo "Version 0.2"
 echo ""
 echo "This script manages SSH key generation, transfer, and backup on a Mac."
+echo "This fork adds recursive key discovery, relative path display, and improved backup logic."
 echo ""
 
 # Ensure the SSH directory exists
@@ -159,34 +175,46 @@ while true; do
         3) # Backup of the keys
             echo ""
             echo "Select a SSH key pair for backup (or press Enter to backup all):"
-            available_keys=($(find ~/.ssh -type f -name 'id_*' ! -name '*.pub' -exec basename {} \;))
+            
+            available_keys=($(find ~/.ssh -type f -name 'id_*' ! -name '*.pub'))
+
             if [ ${#available_keys[@]} -eq 0 ]; then
                 echo "No keys available for backup. Please generate a key first."
                 continue
             else
                 index=0
                 declare -a keys
-                for key in "${available_keys[@]}"; do
+                for full_path in "${available_keys[@]}"; do
+                    relative_path=${full_path/#$HOME\/.ssh\//}
                     letter=$(echo "abcdefghijklmnopqrstuvwxyz" | cut -c $((index+1)))
-                    echo "$letter) $key"
-                    keys[index]=$key
+                    echo "$letter) $relative_path"
+                    keys[index]=$full_path
                     ((index++))
                 done
+                
                 echo "Press Enter to backup all SSH keys."
                 echo ""
                 read -p "Select a SSH key pair to backup by letter (or press Enter for all): " backup_choice
 
                 if [[ -z $backup_choice ]]; then
+                    timestamp=$(date +%Y%m%d%H%M%S)
+
                     for key in "${keys[@]}"; do
-                        backup_file="${key}_backup_$(date +%Y%m%d%H%M%S).zip"
-                        if [ ! -f "$HOME/.ssh/${key}.pub" ]; then
+                        pubkey="${key}.pub"
+
+                        if [ ! -f "$pubkey" ]; then
                             echo "Public key for $key is missing, backup will not proceed."
                             continue
                         fi
-                        if zip -j "$HOME/Documents/$backup_file" "$HOME/.ssh/$key" "$HOME/.ssh/${key}.pub" >/dev/null 2>&1; then
-                            echo "Backup created successfully at ~/Documents/$backup_file"
+
+                        safe_name=$(echo "${key#$HOME/.ssh/}" | tr '/' '__')
+                        backup_file="${safe_name}_backup_${timestamp}.zip"
+                        backup_path="$HOME/Documents/$backup_file"
+
+                        if zip -j "$backup_path" "$key" "$pubkey" >/dev/null 2>&1; then
+                            echo "✅ Backup created: ~/Documents/$backup_file"
                         else
-                            echo "Failed to create backup for $key. Please check permissions and available disk space."
+                            echo "❌ Failed to create backup for $key. Please check permissions and available disk space."
                             continue
                         fi
                     done
@@ -194,10 +222,12 @@ while true; do
                     key_index=$(( $(echo "$backup_choice" | tr -d '\n' | od -An -t uC) - 97 ))
                     key=${keys[key_index]}
                     backup_file="${key}_backup_$(date +%Y%m%d%H%M%S).zip"
+                    
                     if [ ! -f "$HOME/.ssh/${key}.pub" ]; then
                         echo "Public key for $key is missing, backup will not proceed."
                         continue
                     fi
+                    
                     if zip -j "$HOME/Documents/$backup_file" "$HOME/.ssh/$key" "$HOME/.ssh/${key}.pub" >/dev/null 2>&1; then
                         echo "Backup created successfully at ~/Documents/$backup_file"
                     else
